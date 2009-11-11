@@ -6,8 +6,8 @@ class HelperGTypeTest < Test::Unit::TestCase
       assert_contains GIRepository::Helper::GType.public_methods, 'init'
     end
 
-    should "not have g_type_init as a public method" do
-      assert_does_not_contain GIRepository::Helper::GType.public_methods,
+    should "have g_type_init as a private method" do
+      assert_contains GIRepository::Helper::GType.private_methods,
 	'g_type_init'
     end
 
