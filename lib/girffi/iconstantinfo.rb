@@ -1,4 +1,4 @@
-module GirFFI
+module GIRepository
   # Wraps a GIConstantInfo struct; represents an constant.
   # Not implemented yet.
   class IConstantInfo < IBaseInfo

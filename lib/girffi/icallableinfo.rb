@@ -2,7 +2,7 @@ require 'girffi/ibaseinfo'
 require 'girffi/itypeinfo'
 require 'girffi/iarginfo'
 
-module GirFFI
+module GIRepository
   # Wraps a GICallableInfo struct; represents a callable, either
   # IFunctionInfo, ICallbackInfo or IVFuncInfo.
   class ICallableInfo < IBaseInfo

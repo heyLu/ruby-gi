@@ -19,13 +19,13 @@ require 'girffi/iunioninfo'
 require 'girffi/ienuminfo'
 require 'girffi/iflagsinfo'
 
-module GirFFI
+module GIRepository
   # The Gobject Introspection Repository. This class is the point of
   # access to the introspection typelibs.
   # This class wraps the GIRepository struct.
   class IRepository
     def initialize
-      GType.init
+      GObject.type_init
       @gobj = Lib::g_irepository_get_default
     end
 

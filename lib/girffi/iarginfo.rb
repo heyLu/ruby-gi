@@ -1,5 +1,5 @@
 require 'girffi/ibaseinfo'
-module GirFFI
+module GIRepository
   # Wraps a GIArgInfo struct.
   # Represents an argument.
   class IArgInfo < IBaseInfo

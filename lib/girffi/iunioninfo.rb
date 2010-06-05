@@ -1,4 +1,4 @@
-module GirFFI
+module GIRepository
   # Wraps a GIUnionInfo struct.
   # Represents a union.
   # Not implemented yet.

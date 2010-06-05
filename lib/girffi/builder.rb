@@ -9,7 +9,7 @@ module GirFFI
   # to create the modules and classes used in your program.
   module Builder
     def self.build_class namespace, classname, box=nil
-      gir = IRepository.default
+      gir = GIRepository::IRepository.default
       gir.require namespace, nil
 
       info = gir.find_by_name namespace, classname
@@ -56,7 +56,7 @@ module GirFFI
     end
 
     def self.build_module namespace, box=nil
-      IRepository.default.require namespace, nil
+      GIRepository::IRepository.default.require namespace, nil
       modul = setup_module namespace, box
       lb = setup_lib_for_ffi namespace, modul
       unless modul.respond_to? :method_missing
@@ -76,13 +76,13 @@ module GirFFI
     end
 
     def self.function_introspection_data namespace, function
-      gir = GirFFI::IRepository.default
+      gir = GIRepository::IRepository.default
       gir.require namespace.to_s, nil
       return gir.find_by_name namespace, function.to_s
     end
 
     def self.method_introspection_data namespace, object, method
-      gir = GirFFI::IRepository.default
+      gir = GIRepository::IRepository.default
       gir.require namespace.to_s, nil
       objectinfo = gir.find_by_name namespace, object.to_s
       return objectinfo.find_method method
@@ -238,7 +238,7 @@ module GirFFI
 
       unless (class << lb; self.include? FFI::Library; end)
 	lb.extend FFI::Library
-	libs = IRepository.default.shared_library(namespace).split(/,/)
+	libs = GIRepository::IRepository.default.shared_library(namespace).split(/,/)
 	lb.ffi_lib(*libs)
       end
 

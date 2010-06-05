@@ -1,4 +1,4 @@
-module GirFFI
+module GIRepository
   # Wraps a GIRegisteredTypeInfo struct.
   # Represents a registered type.
   # Not implemented yet.

@@ -1,4 +1,4 @@
-module GirFFI
+module GIRepository
   # Wraps a GIObjectInfo struct.
   # Represents an object.
   class IObjectInfo < IRegisteredTypeInfo

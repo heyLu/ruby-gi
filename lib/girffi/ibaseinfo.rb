@@ -1,4 +1,4 @@
-module GirFFI
+module GIRepository
   # Wraps GIBaseInfo struct, the base \type for all info types.
   class IBaseInfo
     # This is a helper method to construct a method returning an array, out

@@ -1,4 +1,4 @@
-module GirFFI
+module GIRepository
   # Wraps a GITypeInfo struct.
   # Represents type information, direction, transfer etc.
   class ITypeInfo < IBaseInfo

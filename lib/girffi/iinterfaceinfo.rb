@@ -1,4 +1,4 @@
-module GirFFI
+module GIRepository
   # Wraps a GIInterfaceInfo struct.
   # Represents an interface.
   # Not implemented yet.

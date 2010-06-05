@@ -1,4 +1,4 @@
-module GirFFI
+module GIRepository
   # Wraps a GIStructInfo struct.
   # Represents a struct.
   class IStructInfo < IRegisteredTypeInfo

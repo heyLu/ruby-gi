@@ -15,7 +15,7 @@ class BuilderTest < Test::Unit::TestCase
       end
 
       should "create a Lib module in the parent namespace ready to attach functions from gobject-2.0" do
-	gir = GirFFI::IRepository.default
+	gir = GIRepository::IRepository.default
 	expected = gir.shared_library 'GObject'
 	assert_same_elements [*expected], NS1::GObject::Lib.ffi_libraries.map(&:name)
       end
@@ -83,7 +83,7 @@ class BuilderTest < Test::Unit::TestCase
 
       should "create a Lib module ready to attach functions from gtk-x11-2.0" do
 	# The Gtk module has more than one library on my current machine.
-	gir = GirFFI::IRepository.default
+	gir = GIRepository::IRepository.default
 	expected = (gir.shared_library 'Gtk').split(',')
 	assert_same_elements expected, NS2::Gtk::Lib.ffi_libraries.map(&:name)
       end
@@ -111,7 +111,7 @@ class BuilderTest < Test::Unit::TestCase
       end
       # TODO: function_introspection_data should not return introspection data if not a function.
       should "have correct introspection data" do
-	gir = GirFFI::IRepository.default
+	gir = GIRepository::IRepository.default
 	gir.require "Gtk", nil
 	go2 = gir.find_by_name "Gtk", "main"
 	assert_equal go2, @go

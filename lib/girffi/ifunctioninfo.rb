@@ -1,4 +1,4 @@
-module GirFFI
+module GIRepository
   # Wraps a GIFunctioInfo struct.
   # Represents a function.
   class IFunctionInfo < ICallableInfo
