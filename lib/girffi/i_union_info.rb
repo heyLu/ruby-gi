@@ -3,6 +3,5 @@ module GIRepository
   # Represents a union.
   # Not implemented yet.
   class IUnionInfo < IRegisteredTypeInfo
-    # TODO: Implementation.
   end
 end

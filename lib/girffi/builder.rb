@@ -1,7 +1,12 @@
 require 'girffi'
+require 'girffi/class_base'
 require 'girffi/arg_helper'
 require 'girffi/function_definition_builder'
 require 'girffi/constructor_definition_builder'
+require 'girffi/method_missing_definition_builder'
+require 'girffi/class_builder'
+require 'girffi/module_builder'
+require 'girffi/builder_helper'
 
 module GirFFI
   # Builds modules and classes based on information found in the
@@ -9,64 +14,29 @@ module GirFFI
   # to create the modules and classes used in your program.
   module Builder
     def self.build_class namespace, classname, box=nil
-      gir = GIRepository::IRepository.default
-      gir.require namespace, nil
-
-      info = gir.find_by_name namespace, classname
-      raise "Class #{classname} not found in namespace #{namespace}" if info.nil?
-      # FIXME: Rescue is ugly here.
-      parent = info.parent rescue nil
-      if parent
-	superclass = build_class parent.namespace, parent.name, box
-      end
-
-      namespacem = setup_module namespace, box
-      klass = get_or_define_class namespacem, classname, superclass
-
-      lb = setup_lib_for_ffi namespace, namespacem
-
-      unless klass.instance_methods(false).include? "method_missing"
-	klass.class_eval method_missing_definition :instance, lb, namespace, classname
-	klass.class_eval method_missing_definition :class, lb, namespace, classname
-
-	unless parent
-	  klass.class_exec do
-	    def initialize ptr
-	      @gobj = ptr
-	    end
-	    class << self
-	      alias :_real_new :new
-	    end
-	    def to_ptr
-	      @gobj
-	    end
-	  end
-	end
-
-	# FIXME: Rescue is ugly here.
-	unless (info.abstract? rescue false)
-	  ctor = info.find_method 'new'
-	  if ctor.constructor?
-	    define_ffi_types lb, ctor
-	    attach_ffi_function lb, ctor
-	    (class << klass; self; end).class_eval function_definition ctor, lb
-	  end
-	end
-      end
-      klass
+      ClassBuilder.new(namespace, classname, box).generate
     end
 
     def self.build_module namespace, box=nil
-      GIRepository::IRepository.default.require namespace, nil
-      modul = setup_module namespace, box
-      lb = setup_lib_for_ffi namespace, modul
-      unless modul.respond_to? :method_missing
-	modul.class_eval method_missing_definition :module, lb, namespace
-      end
-      modul
+      ModuleBuilder.new(namespace, box).generate
     end
 
-    # FIXME: Methods that follow should be private
+    # TODO: Make better interface
+    def self.setup_method namespace, classname, lib, modul, klass, method
+      go = method_introspection_data namespace, classname, method.to_s
+
+      setup_function_or_method klass, modul, lib, go
+    end
+
+    # TODO: Make better interface
+    def self.setup_function namespace, lib, modul, method
+      go = function_introspection_data namespace, method.to_s
+
+      setup_function_or_method modul, modul, lib, go
+    end
+
+    # All methods below will be made private at the end.
+ 
     def self.function_definition info, libmodule
       if info.constructor?
 	fdbuilder = ConstructorDefinitionBuilder.new info, libmodule
@@ -78,28 +48,26 @@ module GirFFI
 
     def self.function_introspection_data namespace, function
       gir = GIRepository::IRepository.default
-      gir.require namespace.to_s, nil
       return gir.find_by_name namespace, function.to_s
     end
 
     def self.method_introspection_data namespace, object, method
       gir = GIRepository::IRepository.default
-      gir.require namespace.to_s, nil
       objectinfo = gir.find_by_name namespace, object.to_s
       return objectinfo.find_method method
     end
 
-    def self.attach_ffi_function modul, info
+    def self.attach_ffi_function modul, lib, info, box
       sym = info.symbol
-      argtypes = ffi_function_argument_types info
-      rt = ffi_function_return_type info
+      argtypes = ffi_function_argument_types modul, lib, info, box
+      rt = ffi_function_return_type modul, lib, info, box
 
-      modul.attach_function sym, argtypes, rt
+      lib.attach_function sym, argtypes, rt
     end
 
-    def self.ffi_function_argument_types info
+    def self.ffi_function_argument_types modul, lib, info, box
       types = info.args.map do |a|
-	iarginfo_to_ffitype a
+	iarginfo_to_ffitype modul, lib, a, box
       end
       if info.type == :function
 	types.unshift :pointer if info.method?
@@ -107,30 +75,32 @@ module GirFFI
       types
     end
 
-    def self.ffi_function_return_type info
-      itypeinfo_to_ffitype info.return_type
+    def self.ffi_function_return_type modul, lib, info, box
+      itypeinfo_to_ffitype modul, lib, info.return_type, box
     end
 
-    def self.define_ffi_types modul, info
+    def self.define_ffi_types modul, lib, info, box
       info.args.each do |arg|
-	type = iarginfo_to_ffitype arg
-	# FIXME: Rescue is ugly here.
-	ft = modul.find_type type rescue nil
-	next unless ft.nil?
-	define_single_ffi_type modul, arg.type
+	type = iarginfo_to_ffitype modul, lib, arg, box
       end
     end
 
-    private
-
-    def self.itypeinfo_to_ffitype info
+    def self.itypeinfo_to_ffitype modul, lib, info, box
       if info.pointer?
 	return :string if info.tag == :utf8
 	return :pointer
       end
       case info.tag
       when :interface
-	return info.interface.name.to_sym
+	interface = info.interface
+	case interface.type
+	when :object, :struct, :flags, :enum
+	  return build_class interface.namespace, interface.name, box
+	when :callback
+	  return build_callback modul, lib, interface, box
+	else
+	  raise NotImplementedError
+	end
       when :boolean
 	return :bool
       else
@@ -138,113 +108,52 @@ module GirFFI
       end
     end
 
-    def self.iarginfo_to_ffitype info
+    def self.iarginfo_to_ffitype modul, lib, info, box
       return :pointer if info.direction == :inout
-      return itypeinfo_to_ffitype info.type
+      return itypeinfo_to_ffitype modul, lib, info.type, box
     end
 
-    def self.define_single_ffi_type modul, typeinfo
-      typeinfo.tag == :interface or raise NotImplementedError, "Don't know how to handle #{typeinfo.tag}"
-
-      interface = typeinfo.interface
+    def self.build_callback modul, lib, interface, box
       sym = interface.name.to_sym
 
-      case interface.type
-      when :callback
-	args = ffi_function_argument_types interface
-	ret = ffi_function_return_type interface
-	modul.callback sym, args, ret
-      when :enum, :flags
-	vals = interface.values.map {|v| [v.name.to_sym, v.value]}.flatten
-	modul.enum sym, vals
+      # FIXME: Rescue is ugly here.
+      ft = lib.find_type sym rescue nil
+      if ft.nil?
+	args = ffi_function_argument_types modul, lib, interface, box
+	ret = ffi_function_return_type modul, lib, interface, box
+	lib.callback sym, args, ret
+      end
+      sym
+    end
+
+    def self.setup_function_or_method klass, modul, lib, go
+      return false if go.nil?
+      return false if go.type != :function
+
+      box = get_box modul
+
+      define_ffi_types modul, lib, go, box
+      attach_ffi_function modul, lib, go, box
+
+      (class << klass; self; end).class_eval function_definition(go, lib)
+      true
+    end
+
+    # TODO: This is a weird way to get back the box.
+    def self.get_box modul
+      name = modul.to_s
+      if name =~ /::/
+	return Kernel.const_get(name.split('::')[0])
       else
-	raise NotImplementedError
+	return nil
       end
     end
 
-    def self.get_or_define_module parent, name
-      unless parent.const_defined? name
-	parent.const_set name, Module.new
-      end
-      parent.const_get name
+    # Set up method access.
+    (self.public_methods - Module.public_methods).each do |m|
+      private_class_method m.to_sym
     end
-
-    def self.get_or_define_class namespace, name, parent
-      unless namespace.const_defined? name
-	if parent.nil?
-	  klass = Class.new
-	else
-	  klass = Class.new parent
-	end
-	namespace.const_set name, klass
-      end
-      namespace.const_get name
-    end
-
-    def self.optionally_define_constant parent, name, value
-      unless parent.const_defined? name
-	parent.const_set name, value
-      end
-    end
-
-    def self.setup_module namespace, box=nil
-      if box.nil?
-	boxm = ::Object
-      else
-	boxm = get_or_define_module ::Object, box.to_s
-      end
-      return get_or_define_module boxm, namespace.to_s
-    end
-
-    def self.method_missing_definition type, lib, namespace, classname=nil
-      case type
-      when :module
-	raise ArgumentError unless classname.nil?
-	slf = "self."
-	fn = "function_introspection_data"
-	args = ["\"#{namespace}\""]
-      when :instance
-	slf = ""
-	fn = "method_introspection_data"
-	args = ["\"#{namespace}\"", "\"#{classname}\""]
-      when :class
-	slf = "self."
-	fn = "method_introspection_data"
-	args = ["\"#{namespace}\"", "\"#{classname}\""]
-      end
-
-      return <<-CODE
-	def #{slf}method_missing method, *arguments, &block
-	  go = GirFFI::Builder.#{fn} #{args.join ', '}, method.to_s
-
-	  return super if go.nil?
-	  return super if go.type != :function
-
-	  GirFFI::Builder.define_ffi_types #{lib}, go
-	  GirFFI::Builder.attach_ffi_function #{lib}, go
-
-	  (class << self; self; end).class_eval GirFFI::Builder.function_definition(go, #{lib})
-
-	  if block.nil?
-	    self.send method, *arguments
-	  else
-	    self.send method, *arguments, &block
-	  end
-	end
-      CODE
-    end
-
-    def self.setup_lib_for_ffi namespace, modul
-      lb = get_or_define_module modul, :Lib
-
-      unless (class << lb; self.include? FFI::Library; end)
-	lb.extend FFI::Library
-	libs = GIRepository::IRepository.default.shared_library(namespace).split(/,/)
-	lb.ffi_lib(*libs)
-      end
-
-      optionally_define_constant lb, :CALLBACKS, []
-      return lb
-    end
+    public_class_method :build_module, :build_class, :setup_method, :setup_function, :setup_function_or_method
+    public_class_method :itypeinfo_to_ffitype
   end
 end

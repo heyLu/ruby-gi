@@ -10,8 +10,8 @@ class BuilderTest < Test::Unit::TestCase
       end
 
       should "create a method_missing method for the class" do
-	ms = NS1::GObject::Object.instance_methods(false)
-	assert_contains ms, "method_missing"
+	ms = NS1::GObject::Object.instance_methods(false).map(&:to_sym)
+	assert_contains ms, :method_missing
       end
 
       should "create a Lib module in the parent namespace ready to attach functions from gobject-2.0" do
@@ -36,6 +36,11 @@ class BuilderTest < Test::Unit::TestCase
 	GirFFI::Builder.build_class 'Gtk', 'Window', 'NS3'
       end
 
+      should "build Gtk namespace" do
+	assert NS3::Gtk.const_defined? :Lib
+	assert NS3::Gtk.respond_to? :method_missing
+      end
+
       should "build parent classes also" do
 	assert NS3::Gtk.const_defined? :Widget
 	assert NS3::Gtk.const_defined? :Object
@@ -52,13 +57,12 @@ class BuilderTest < Test::Unit::TestCase
 	  NS3::Gtk::Widget,
 	  NS3::Gtk::Object,
 	  NS3::GObject::InitiallyUnowned,
-	  NS3::GObject::Object,
-	  Object
-	], NS3::Gtk::Window.ancestors[0..7]
+	  NS3::GObject::Object
+	], NS3::Gtk::Window.ancestors[0..6]
       end
 
       should "create a Gtk::Window#to_ptr method" do
-	assert NS3::Gtk::Window.instance_methods.include? "to_ptr"
+	assert_contains NS3::Gtk::Window.instance_methods.map(&:to_sym), :to_ptr
       end
 
       should "attach gtk_window_new to Gtk::Lib" do
@@ -73,12 +77,6 @@ class BuilderTest < Test::Unit::TestCase
     context "building Gtk" do
       setup do
 	GirFFI::Builder.build_module 'Gtk', 'NS2'
-      end
-
-      # TODO: Should also create a const_missing method to autocreate all
-      # the classes in that namespace.
-      should "create a method_missing method for the module" do
-	assert_contains NS2::Gtk.public_methods - Module.public_methods, "method_missing"
       end
 
       should "create a Lib module ready to attach functions from gtk-x11-2.0" do
@@ -107,7 +105,7 @@ class BuilderTest < Test::Unit::TestCase
 
     context "looking at Gtk.main" do
       setup do
-	@go = GirFFI::Builder.function_introspection_data 'Gtk', 'main'
+	@go = get_function_introspection_data 'Gtk', 'main'
       end
       # TODO: function_introspection_data should not return introspection data if not a function.
       should "have correct introspection data" do
@@ -118,7 +116,7 @@ class BuilderTest < Test::Unit::TestCase
       end
 
       should "build correct definition of Gtk.main" do
-	code = GirFFI::Builder.function_definition @go, Lib
+	code = GirFFI::Builder.send :function_definition, @go, Lib
 
 	expected = "def main\nLib.gtk_main\nend"
 
@@ -133,103 +131,71 @@ class BuilderTest < Test::Unit::TestCase
 	  ffi_lib "gtk-x11-2.0"
 	end
 
-	GirFFI::Builder.attach_ffi_function libmod, @go
-	assert_contains libmod.public_methods, "gtk_main"
+	GirFFI::Builder.send :attach_ffi_function, mod, libmod, @go, nil
+	assert_contains libmod.public_methods.map(&:to_sym), :gtk_main
       end
     end
 
     context "looking at Gtk.init" do
       setup do
-	@go = GirFFI::Builder.function_introspection_data 'Gtk', 'init'
+	@go = get_function_introspection_data 'Gtk', 'init'
       end
 
-      should "build correct definition of Gtk.init" do
-	code = GirFFI::Builder.function_definition @go, Lib
-
-	expected =
-	  "def init argc, argv
-	    _v1 = GirFFI::ArgHelper.int_to_inoutptr argc
-	    _v3 = GirFFI::ArgHelper.string_array_to_inoutptr argv
-	    Lib.gtk_init _v1, _v3
-	    _v2 = GirFFI::ArgHelper.outptr_to_int _v1
-	    _v4 = GirFFI::ArgHelper.outptr_to_string_array _v3, argv.nil? ? 0 : argv.size
-	    return _v2, _v4
-	  end"
-
+      should "delegate definition to FunctionDefinitionBuilder" do
+	code = GirFFI::Builder.send :function_definition, @go, Lib
+	expected = GirFFI::FunctionDefinitionBuilder.new(@go, Lib).generate
 	assert_equal cws(expected), cws(code)
       end
 
       should "have :pointer, :pointer as types of the arguments for the attached function" do
 	# FIXME: Ideally, we attach the function and test that it requires
 	# the correct argument types.
-	assert_equal [:pointer, :pointer], GirFFI::Builder.ffi_function_argument_types(@go)
+	assert_equal [:pointer, :pointer], GirFFI::Builder.send(:ffi_function_argument_types, Gtk, Gtk::Lib, @go, nil)
       end
 
       should "have :void as return type for the attached function" do
-	assert_equal :void, GirFFI::Builder.ffi_function_return_type(@go)
+	assert_equal :void, GirFFI::Builder.send(:ffi_function_return_type, Gtk, Gtk::Lib, @go, nil)
       end
     end
 
     context "looking at Gtk::Widget#show" do
       setup do
-	@go = GirFFI::Builder.method_introspection_data 'Gtk', 'Widget', 'show'
+	@go = get_method_introspection_data 'Gtk', 'Widget', 'show'
       end
 
-      should "build correct definition of Gtk::Widget.show" do
-	code = GirFFI::Builder.function_definition @go, Lib
-
-	expected =
-	  "def show
-	    Lib.gtk_widget_show @gobj
-	  end"
-
+      should "delegate definition to FunctionDefinitionBuilder" do
+	code = GirFFI::Builder.send :function_definition, @go, Lib
+	expected = GirFFI::FunctionDefinitionBuilder.new(@go, Lib).generate
 	assert_equal cws(expected), cws(code)
       end
 
       should "have :pointer as types of the arguments for the attached function" do
-	assert_equal [:pointer], GirFFI::Builder.ffi_function_argument_types(@go)
+	assert_equal [:pointer], GirFFI::Builder.send(:ffi_function_argument_types, Gtk, Gtk::Lib, @go, nil)
       end
 
     end
 
     context "looking at GObject.signal_connect_data" do
       setup do
-	@go = GirFFI::Builder.function_introspection_data 'GObject', 'signal_connect_data'
+	GirFFI::Builder.build_module 'GObject', 'NS5'
+	@go = get_function_introspection_data 'GObject', 'signal_connect_data'
       end
 
-      # TODO: This is essentially the same test as for
-      # FunctionDefinitionBuilder. Test this only once.
-      should "build the correct definition" do
-	code = GirFFI::Builder.function_definition @go, Lib
-
-	expected =
-	  "def signal_connect_data instance, detailed_signal, c_handler, data, destroy_data, connect_flags
-	    _v1 = GirFFI::ArgHelper.object_to_inptr instance
-	    Lib::CALLBACKS << c_handler
-	    _v2 = GirFFI::ArgHelper.object_to_inptr data
-	    Lib::CALLBACKS << destroy_data
-	    Lib.g_signal_connect_data _v1, detailed_signal, c_handler, _v2, destroy_data, connect_flags
-	  end"
-
+      should "delegate definition to FunctionDefinitionBuilder" do
+	code = GirFFI::Builder.send :function_definition, @go, Lib
+	expected = GirFFI::FunctionDefinitionBuilder.new(@go, Lib).generate
 	assert_equal cws(expected), cws(code)
       end
 
       should "have the correct types of the arguments for the attached function" do
-	assert_equal [:pointer, :string, :Callback, :pointer, :ClosureNotify, :ConnectFlags],
-	  GirFFI::Builder.ffi_function_argument_types(@go)
+	assert_equal [:pointer, :string, :Callback, :pointer, :ClosureNotify, NS5::GObject::ConnectFlags],
+	  GirFFI::Builder.send(:ffi_function_argument_types, NS5::GObject, NS5::GObject::Lib, @go, 'NS5')
       end
 
       should "define ffi callback types :Callback and :ClosureNotify" do
-	lb = Module.new
-	lb.extend FFI::Library
-
-	assert_raises(TypeError) { lb.find_type :Callback }
-	assert_raises(TypeError) { lb.find_type :ClosureNotify }
-
-	GirFFI::Builder.define_ffi_types lb, @go
-
-	cb = lb.find_type :Callback
-	cn = lb.find_type :ClosureNotify
+	GirFFI::Builder.setup_function 'GObject', NS5::GObject::Lib, NS5::GObject, 'signal_connect_data'
+	cb = NS5::GObject::Lib.find_type :Callback
+	cn = NS5::GObject::Lib.find_type :ClosureNotify
 
 	assert_equal FFI.find_type(:void), cb.result_type
 	assert_equal FFI.find_type(:void), cn.result_type
@@ -237,15 +203,35 @@ class BuilderTest < Test::Unit::TestCase
 	assert_equal [FFI.find_type(:pointer), FFI.find_type(:pointer)], cn.param_types
       end
 
-      should "define ffi enum type :ConnectFlags" do
-	lb = Module.new
-	lb.extend FFI::Library
-	GirFFI::Builder.define_ffi_types lb, @go
-	assert_equal({:after => 1, :swapped => 2}, lb.find_type(:ConnectFlags).to_h)
+      should "define ffi enum type ConnectFlags" do
+	assert_equal({:after => 1, :swapped => 2}, NS5::GObject::ConnectFlags.to_h)
       end
     end
 
-    context "setting up Everything::TestBoxed" do
+    context "building Everything::TestStructA" do
+      setup do
+	GirFFI::Builder.build_class 'Everything', 'TestStructA'
+      end
+
+      should "set up the correct struct members" do
+	assert_equal [:some_int, :some_int8, :some_double, :some_enum],
+	  Everything::TestStructA.members
+      end
+
+      should "set up struct members with the correct offset" do
+	info = GirFFI::IRepository.default.find_by_name 'Everything', 'TestStructA'
+	assert_equal info.fields.map{|f| [f.name.to_sym, f.offset]},
+	  Everything::TestStructA.offsets
+      end
+
+      should "set up struct members with the correct types" do
+	tags = [:int, :int8, :double, Everything::TestEnum]
+	assert_equal tags.map {|t| FFI.find_type t},
+	  Everything::TestStructA.layout.fields.map(&:type)
+      end
+    end
+
+    context "building Everything::TestBoxed" do
       setup do
 	GirFFI::Builder.build_class 'Everything', 'TestBoxed'
       end
@@ -269,15 +255,52 @@ class BuilderTest < Test::Unit::TestCase
       end
     end
 
+    context "building Everything::TestEnum" do
+      setup do
+	GirFFI::Builder.build_class 'Everything', 'TestEnum'
+      end
+      should "create an object of type FFI::Enum" do
+	assert_instance_of FFI::Enum, Everything::TestEnum
+      end
+    end
+
     # TODO: Should not allow functions to be called as methods, etc.
 
     context "looking at Everything's functions" do
       setup do
 	GirFFI::Builder.build_module 'Everything'
       end
+
       should "correctly handle test_boolean" do
 	assert_equal false, Everything.test_boolean(false)
 	assert_equal true, Everything.test_boolean(true)
+      end
+
+      should "correctly handle test_callback_user_data" do
+	a = :foo
+	result = Everything.test_callback_user_data Proc.new {|u|
+	  a = u
+	  5
+	}, :bar
+	assert_equal :bar, a
+	assert_equal 5, result
+      end
+    end
+
+    context "building the Everything module" do
+      setup do
+	GirFFI::Builder.build_module 'Everything', 'NS4'
+      end
+
+      should "create a method_missing method for the module" do
+	ms = (NS4::Everything.public_methods - Module.public_methods).map(&:to_sym)
+	assert_contains ms, :method_missing
+      end
+
+      should "cause the TestObj class to be autocreated" do
+	assert !NS4::Everything.const_defined?(:TestObj)
+	assert_nothing_raised {NS4::Everything::TestObj}
+	assert NS4::Everything.const_defined? :TestObj
       end
     end
   end

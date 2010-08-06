@@ -1,6 +1,11 @@
+require 'girffi/class_base'
+
 module GIRepository
   # Wraps GIBaseInfo struct, the base \type for all info types.
+  # Decendant types will be implemented as needed.
   class IBaseInfo
+    include ClassBase
+
     # This is a helper method to construct a method returning an array, out
     # of the methods returning their number and the individual elements.
     #
@@ -9,25 +14,19 @@ module GIRepository
     #
     # Provide the second parameter if the plural is not trivially
     # constructed by adding +s+ to the singular.
-    # --
-    # TODO: Use plural as the first argument, to help RDoc
-    def self.build_array_method elementname, plural = nil
-      plural ||= "#{elementname}s"
+    def self.build_array_method method, single = nil
+      single ||= method.to_s[0..-2]
+      count = "n_#{method}"
       self.class_eval <<-CODE
-	def #{plural}
-	  (0..(n_#{plural} - 1)).map do |i|
-	    #{elementname} i
+	def #{method}
+	  (0..(#{count} - 1)).map do |i|
+	    #{single} i
 	  end
 	end
       CODE
     end
 
-    # TODO: Perhaps make #new private.
-    def initialize gobj=nil
-      raise "#{self.class} creation not implemeted" if gobj.nil?
-      raise "Null Pointer" if gobj.null?
-      @gobj = gobj
-    end
+    private_class_method :new
 
     def name; Lib.g_base_info_get_name @gobj; end
     def type; Lib.g_base_info_get_type @gobj; end
@@ -36,13 +35,11 @@ module GIRepository
 
     def self.wrap ptr
       return nil if ptr.null?
-      return self.new ptr
+      return new ptr
     end
 
     def == other
-      self.name == other.name and
-      self.type == other.type and
-      self.namespace == other.namespace
+      Lib.g_base_info_equal @gobj, other.to_ptr
     end
   end
 end

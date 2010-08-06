@@ -5,19 +5,15 @@
 $LOAD_PATH.unshift File.join(File.dirname(__FILE__), '..', 'lib')
 require 'girffi/builder'
 
-GirFFI::Builder.build_module 'GObject'
-GirFFI::Builder.build_module 'Gtk'
-GirFFI::Builder.build_class 'Gtk', 'Window'
-GirFFI::Builder.build_class 'Gtk', 'HBox'
-GirFFI::Builder.build_class 'Gtk', 'Button'
+GirFFI.setup :GObject
+GirFFI.setup :Gtk
 
-callback = FFI::Function.new(:void, [:pointer, :pointer]) do |widget, data|
-  # TODO: Don't want to need this.
-  str = data.read_string
-  puts "Hello again - #{str} was pressed"
-end
+callback = FFI::Function.new :void, [:pointer, :pointer],
+  &GirFFI::ArgHelper.mapped_callback_args { |widget, data|
+    puts "Hello again - #{data} was pressed"
+  }
 
-(my_len, my_args) = Gtk.init ARGV.length + 1, [$0, *ARGV]
+Gtk.init
 
 win = Gtk::Window.new(:toplevel)
 win.set_title "Hello Buttons!"

@@ -3,7 +3,6 @@ module GIRepository
   # Represents a registered type.
   # Not implemented yet.
   class IRegisteredTypeInfo < IBaseInfo
-    # TODO: Implementation.
   end
 end
 
