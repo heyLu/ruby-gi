@@ -73,7 +73,7 @@ module GIRepository
       Lib.g_irepository_require @gobj, namespace, version, 0, errpp
 
       errp = errpp.read_pointer
-      raise GError.new(errp)[:message] unless errp.null?
+      raise GObject::GError.new(errp)[:message] unless errp.null?
     end
 
     def info namespace, index

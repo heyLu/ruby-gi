@@ -31,7 +31,7 @@ module GirFFI
     end
 
     def get_gir_info
-      gir = IRepository.default
+      gir = GIRepository::IRepository.default
       gir.require @namespace, nil
 
       @info = gir.find_by_name @namespace, @classname

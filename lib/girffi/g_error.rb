@@ -1,4 +1,4 @@
-module GirFFI
+module GObject
   # Wraps GObject's GError struct.
   class GError < FFI::Struct
     layout :domain, :uint32,

@@ -17,7 +17,7 @@ module GirFFI
     private
 
     def build_module
-      IRepository.default.require @namespace, nil
+      GIRepository::IRepository.default.require @namespace, nil
       setup_module
       setup_lib_for_ffi
       unless @module.respond_to? :method_missing
@@ -41,7 +41,7 @@ module GirFFI
 
       unless (class << @lib; self.include? FFI::Library; end)
 	@lib.extend FFI::Library
-	libs = IRepository.default.shared_library(@namespace).split(/,/)
+	libs = GIRepository::IRepository.default.shared_library(@namespace).split(/,/)
 	@lib.ffi_lib(*libs)
       end
 
@@ -56,7 +56,7 @@ module GirFFI
       box = @box.nil? ? "nil" : "\"#{@box}\""
       return <<-CODE
 	def self.const_missing classname
-	  info = IRepository.default.find_by_name "#{@namespace}", classname.to_s
+	  info = GIRepository::IRepository.default.find_by_name "#{@namespace}", classname.to_s
 	  return super if info.nil?
 	  return GirFFI::Builder.build_class "#{@namespace}", classname.to_s, #{box}
 	end
