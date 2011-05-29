@@ -467,7 +467,7 @@ class GeneratedRegressTest < MiniTest::Spec
     end
 
     should "have correct test_async_ready_callback" do
-      GirFFI.setup :Gtk, '2.0'
+      GirFFI.setup :Gtk
       a = 1
 
       Regress.test_async_ready_callback Proc.new {

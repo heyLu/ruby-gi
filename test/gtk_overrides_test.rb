@@ -3,7 +3,7 @@ require File.expand_path('test_helper.rb', File.dirname(__FILE__))
 class GtkOverridesTest < MiniTest::Spec
   context "The Gtk.init function" do
     setup do
-      GirFFI.setup :Gtk, '2.0'
+      GirFFI.setup :Gtk
     end
 
     should "not take any arguments" do
