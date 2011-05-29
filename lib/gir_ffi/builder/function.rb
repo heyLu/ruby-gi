@@ -80,7 +80,9 @@ module GirFFI::Builder
       po = (@data.map(&:post) + @data.map(&:postpost) + @rvdata.post)
       po.unshift @errarg.post
 
-      retvals = ([@rvdata.retval] + @data.map(&:retval)).compact
+      # removing `+ @data.map(&:retval)` crashes gtk overides, but gives
+      # back only strings when those are there...
+      retvals = ([@rvdata.retval]).compact
       po << "return #{retvals.join(', ')}" unless retvals.empty?
 
       po.flatten
