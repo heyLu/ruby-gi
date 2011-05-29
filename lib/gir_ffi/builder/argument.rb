@@ -797,7 +797,7 @@ module GirFFI::Builder
         @cvar
       else
         if type_tag == :utf8
-          "#{@cvar}.force_encoding('utf-8')"
+          "#{@cvar}.nil? ? nil : #{@cvar}.force_encoding('utf-8')"
         else
           @cvar
         end
