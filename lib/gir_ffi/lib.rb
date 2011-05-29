@@ -121,6 +121,8 @@ module GirFFI
       :byte_array
     ]
 
+    attach_function :g_type_name, [:int], :string
+
     attach_function :g_type_info_is_pointer, [:pointer], :bool
     attach_function :g_type_info_get_tag, [:pointer], :ITypeTag
     attach_function :g_type_info_get_param_type, [:pointer, :int], :pointer
