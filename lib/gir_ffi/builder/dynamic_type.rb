@@ -9,6 +9,7 @@ module GirFFI
 
       def build_class
         CACHE[@gtype] ||= Class.new(parent).tap do |klass|
+          klass.const_set :GIR_FFI_BUILDER, parent.gir_ffi_builder
           interfaces.each do |iface|
             klass.class_eval do
               include iface
